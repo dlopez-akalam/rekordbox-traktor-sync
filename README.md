@@ -11,20 +11,53 @@ It can read Rekordbox data in two ways:
   No export step. Needs the optional `pyrekordbox` package.
 * **From a Rekordbox XML export.** Pure Python 3.8+, no dependencies.
 
+Works on **macOS** (Apple Silicon and Intel) and **Windows**, the two platforms
+Rekordbox and Traktor run on.
+
 ## Install
 
+Get the code first:
+
 ```sh
-pip install '.[db]'      # with direct library reading (recommended)
-pip install .            # XML export only, no dependencies
+git clone https://github.com/dlopez-akalam/rekordbox-traktor-sync.git
+cd rekordbox-traktor-sync
+```
+
+### macOS
+
+Use Homebrew's Python. The `python3` that comes with Xcode's Command Line
+Tools is 3.9, too old for current `pyrekordbox` (3.11+). Install the tool with
+[pipx](https://pipx.pypa.io): Homebrew's Python refuses a plain `pip install`
+("externally-managed-environment").
+
+```sh
+brew install python pipx
+pipx ensurepath          # then open a new Terminal window
+pipx install '.[db]'
 rb2traktor --help
 ```
 
-You can also run it without installing: `python3 -m rb2traktor ...`
+### Windows
+
+Install Python 3.11+ from [python.org](https://www.python.org/downloads/), with
+"Add python.exe to PATH" ticked. Then, in PowerShell:
+
+```powershell
+pip install ".[db]"
+rb2traktor --help
+```
+
+### Without direct library reading
+
+`pip install .` (or `pipx install .`) installs only the XML route. It has no
+dependencies and runs on Python 3.8+. You can also run the tool without
+installing it: `python3 -m rb2traktor ...`
 
 ## Usage
 
 1. **Quit Traktor**: it overwrites `collection.nml` when it exits. Quitting
    Rekordbox too is best, so that all your edits are saved to its database.
+   On macOS, quit with **⌘Q**: closing the window leaves the app running.
 2. Preview the changes:
 
    ```sh
@@ -62,6 +95,30 @@ rb2traktor --from xml                     # always use the default XML export
 rb2traktor --from db                      # always use the database; fail if it can't be read
 rb2traktor rekordbox.xml collection.nml   # both explicit
 ```
+
+### macOS notes
+
+* **Where the files are:** both are found automatically.
+
+  | What                     | Location on macOS                                         |
+  |--------------------------|-----------------------------------------------------------|
+  | Traktor collection       | `~/Documents/Native Instruments/Traktor 3.x.x/collection.nml` |
+  | Rekordbox library        | `~/Library/Pioneer/rekordbox/master.db`                    |
+  | Default XML export       | `~/Music/rekordbox.xml`                                    |
+
+* **Documents folder permission:** macOS protects `~/Documents`. The first run
+  may show "Terminal would like to access files in your Documents folder";
+  click **Allow**. If access was denied earlier, the tool says so and you can
+  grant it under *System Settings → Privacy & Security → Files and Folders*
+  (or *Full Disk Access*) for your terminal app (Terminal, iTerm, …).
+* **External drives:** music on `/Volumes/<drive>/…` is matched to Traktor's
+  volume of the same name. Tracks on the system disk match whatever the disk is
+  called ("Macintosh HD" or a custom name).
+* **Accented file names:** macOS can store characters like `é` in two
+  different Unicode forms. Paths are normalised before matching, so
+  `Café.mp3` matches either way.
+* **Mixing Mac and Windows:** if Rekordbox runs on one OS and Traktor on the
+  other, map the paths: `--path-map "C:/Users/me/Music=/Users/me/Music"`.
 
 ### About reading the Rekordbox library directly
 

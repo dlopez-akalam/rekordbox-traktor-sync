@@ -146,12 +146,15 @@ class TraktorCollection:
 
 
 def find_collections():
-    """Return candidate Traktor collection.nml paths, newest version first."""
-    home = os.path.expanduser("~")
-    patterns = [
-        os.path.join(home, "Documents", "Native Instruments", "Traktor*", "collection.nml"),
-    ]
-    found = []
-    for pattern in patterns:
-        found.extend(glob.glob(pattern))
+    """Return candidate Traktor collection.nml paths, newest version first.
+
+    Raises PermissionError when the folder exists but can't be listed, which on
+    macOS means the terminal hasn't been granted access to ~/Documents (glob
+    would silently report nothing).
+    """
+    documents = os.path.join(os.path.expanduser("~"), "Documents")
+    if os.path.isdir(documents):
+        os.listdir(documents)
+    ni_dir = os.path.join(documents, "Native Instruments")
+    found = glob.glob(os.path.join(glob.escape(ni_dir), "Traktor*", "collection.nml"))
     return sorted(found, key=os.path.getmtime, reverse=True)

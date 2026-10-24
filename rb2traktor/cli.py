@@ -24,6 +24,16 @@ def _path_map(value):
     return old, new
 
 
+def _os_error(exc):
+    """Format an OSError, explaining macOS privacy blocks (EPERM on ~/Documents etc.)."""
+    msg = str(exc)
+    if isinstance(exc, PermissionError) and sys.platform == "darwin":
+        msg += ("\n  macOS blocked access to this folder. Allow your terminal app under "
+                "System Settings > Privacy & Security > Files and Folders (Documents) "
+                "or Full Disk Access, then run again.")
+    return msg
+
+
 class SourceError(Exception):
     pass
 
@@ -176,7 +186,11 @@ def main(argv=None):
 
     nml = args.traktor_nml
     if not nml:
-        candidates = find_collections()
+        try:
+            candidates = find_collections()
+        except OSError as exc:
+            print("error: %s" % _os_error(exc), file=sys.stderr)
+            return 2
         if not candidates:
             print("error: no Traktor collection.nml found; pass its path explicitly",
                   file=sys.stderr)
@@ -186,7 +200,10 @@ def main(argv=None):
 
     try:
         rb_tracks = load_rekordbox(args)
-    except (SourceError, OSError, ValueError) as exc:
+    except OSError as exc:
+        print("error: %s" % _os_error(exc), file=sys.stderr)
+        return 2
+    except (SourceError, ValueError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
     except Exception as exc:  # xml.etree.ElementTree.ParseError and friends
@@ -195,7 +212,10 @@ def main(argv=None):
 
     try:
         collection = TraktorCollection(nml)
-    except (OSError, ValueError) as exc:
+    except OSError as exc:
+        print("error: %s" % _os_error(exc), file=sys.stderr)
+        return 2
+    except ValueError as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
     except Exception as exc:  # xml.etree.ElementTree.ParseError and friends
@@ -244,11 +264,15 @@ def main(argv=None):
         return 0
 
     out = args.output or nml
-    if os.path.abspath(out) == os.path.abspath(nml) and not args.no_backup:
-        backup = "%s.%s.bak" % (nml, time.strftime("%Y%m%d-%H%M%S"))
-        shutil.copy2(nml, backup)
-        print("Backup written to %s" % backup)
-    collection.write(out)
+    try:
+        if os.path.abspath(out) == os.path.abspath(nml) and not args.no_backup:
+            backup = "%s.%s.bak" % (nml, time.strftime("%Y%m%d-%H%M%S"))
+            shutil.copy2(nml, backup)
+            print("Backup written to %s" % backup)
+        collection.write(out)
+    except OSError as exc:
+        print("error: %s" % _os_error(exc), file=sys.stderr)
+        return 2
     print("Wrote %s" % out)
     return 0
 
