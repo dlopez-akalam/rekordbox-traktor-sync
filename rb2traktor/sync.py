@@ -9,6 +9,9 @@ from .paths import (apply_path_maps, basename_key, match_key, normalize_volume,
                     split_path)
 
 
+OVERWRITE_FIELDS = ("bpm", "key", "grid")
+
+
 @dataclass
 class SyncOptions:
     bpm: bool = True
@@ -17,6 +20,9 @@ class SyncOptions:
     grid_mode: str = "single"
     offset_ms: float = 0.0
     key_format: str = "openkey"
+    # Fields ("bpm", "key", "grid") whose existing Traktor values may be
+    # replaced. Fields not listed are only written when Traktor has no value.
+    overwrite: frozenset = frozenset()
     lock: bool = True
     skip_locked: bool = False
     match_filename: bool = True
@@ -29,6 +35,7 @@ class TrackResult:
     entry: object = None
     status: str = ""  # updated, unchanged, unmatched, ambiguous, locked
     changes: list = field(default_factory=list)
+    kept: list = field(default_factory=list)  # differing fields left as they were
     warnings: list = field(default_factory=list)
 
 
@@ -114,7 +121,9 @@ def sync(rb_tracks, collection, options):
 
         if options.bpm and rb.bpm:
             old = entry.bpm
-            if old is None or abs(old - rb.bpm) >= 0.0005:
+            if old and abs(old - rb.bpm) >= 0.0005 and "bpm" not in options.overwrite:
+                result.kept.append("bpm")
+            elif not old or abs(old - rb.bpm) >= 0.0005:
                 entry.set_bpm(rb.bpm)
                 result.changes.append("bpm %s -> %.2f" % ("%.2f" % old if old else "none", rb.bpm))
 
@@ -127,7 +136,10 @@ def sync(rb_tracks, collection, options):
                 info = entry.element.find("INFO")
                 old_text = info.get("KEY") if info is not None else None
                 new_text = format_key(rb.key, options.key_format)
-                if old != rb.key or old_text != new_text:
+                if old is not None and "key" not in options.overwrite:
+                    if old != rb.key:
+                        result.kept.append("key")
+                elif old != rb.key or old_text != new_text:
                     entry.set_key(rb.key, options.key_format)
                     result.changes.append("key %s -> %s" % (
                         format_key(old, options.key_format) if old is not None else "none", new_text))
@@ -139,7 +151,9 @@ def sync(rb_tracks, collection, options):
             same = len(old) == len(new) and all(
                 abs(o[0] - n[0]) < 0.001 and o[1] is not None and abs(o[1] - n[1]) < 0.0005
                 for o, n in zip(old, new))
-            if not same:
+            if old and not same and "grid" not in options.overwrite:
+                result.kept.append("grid")
+            elif not same:
                 entry.set_grid(markers)
                 if options.grid_mode == "single" and not is_constant(rb.tempos):
                     result.warnings.append(
@@ -151,6 +165,11 @@ def sync(rb_tracks, collection, options):
             entry.lock()
             result.changes.append("locked")
 
-        result.status = "updated" if result.changes else "unchanged"
+        if result.changes:
+            result.status = "updated"
+        elif result.kept:
+            result.status = "kept"
+        else:
+            result.status = "unchanged"
 
     return results

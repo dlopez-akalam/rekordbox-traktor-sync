@@ -39,6 +39,23 @@ You can also run it without installing: `python3 -m rb2traktor ...`
    before the file is changed. Use `-o new.nml` to write a separate file instead.
 5. Start Traktor.
 
+## Existing Traktor values vs. `--overwrite`
+
+By default the tool **only fills in what is missing**. If a Traktor track has
+no BPM, no key or no beatgrid, that field is copied from Rekordbox. Values that
+already exist in Traktor are left alone. They are reported as "kept existing"
+(listed with `-v`).
+
+To replace existing Traktor values with Rekordbox's, use `--overwrite`:
+
+```sh
+rb2traktor rekordbox.xml --overwrite all                         # BPM, key and grid
+rb2traktor rekordbox.xml --overwrite grid                        # only replace grids
+rb2traktor rekordbox.xml --overwrite bpm --overwrite grid        # BPM and grid, keep keys
+```
+
+Run it with `--dry-run -v` first to see exactly which tracks would change.
+
 ## What gets written
 
 | Rekordbox (XML)               | Traktor (NML)                                                           |
@@ -47,7 +64,8 @@ You can also run it without installing: `python3 -m rb2traktor ...`
 | `Tonality` (`Am`, `8A`, `1m`) | `<MUSICAL_KEY VALUE=…>` and the key text `<INFO KEY=…>`                 |
 | `<TEMPO Inizio Bpm Battito>`  | grid markers `<CUE_V2 TYPE="4">` with `<GRID BPM=…>`                    |
 
-* **Beatgrid**: existing Traktor grid markers are replaced. Other cues are kept.
+* **Beatgrid**: when the grid is written, existing Traktor grid markers are
+  replaced. Other cues are kept.
   The marker is placed on the first **downbeat**, using Rekordbox's
   `Battito` value, so bar counting in Traktor lines up with Rekordbox.
 * **Variable tempo**: tracks analysed with Rekordbox's dynamic mode have several
@@ -56,7 +74,7 @@ You can also run it without installing: `python3 -m rb2traktor ...`
   per tempo change.
 * **Locking**: updated tracks are locked (`LOCK="1"`) so Traktor's analysis
   won't overwrite them. Turn this off with `--no-lock`. Tracks that were already
-  locked are updated too, unless you pass `--skip-locked`.
+  locked are treated like any other track, unless you pass `--skip-locked`.
 * **Key text** is written in Open Key notation (Traktor's default). Use
   `--key-format musical` or `--key-format camelot` to change this.
 * Running the tool again is safe. Tracks that already match are reported as
@@ -99,6 +117,7 @@ rb2traktor REKORDBOX_XML [TRAKTOR_NML]
   -n, --dry-run            show what would change, write nothing
   --no-backup              skip the timestamped backup
   --no-bpm / --no-key / --no-grid
+  --overwrite all|bpm|key|grid  replace existing Traktor values (repeatable)
   --grid-mode single|multi
   --offset-ms MS
   --key-format openkey|musical|camelot

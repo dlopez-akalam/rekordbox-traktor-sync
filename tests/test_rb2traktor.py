@@ -103,7 +103,7 @@ class SyncTests(unittest.TestCase):
         return collection, {r.rb.name: r for r in results}
 
     def test_sync(self):
-        collection, results = self._sync()
+        collection, results = self._sync(overwrite=frozenset({"bpm", "key", "grid"}))
         self.assertEqual(results["Constant"].status, "updated")
         self.assertEqual(results["Variable"].status, "updated")
         self.assertEqual(results["Moved"].status, "updated")  # filename fallback
@@ -134,9 +134,31 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(moved.key, 18)
 
         # Running again changes nothing.
-        _, results = self._sync()
+        _, results = self._sync(overwrite=frozenset({"bpm", "key", "grid"}))
         self.assertEqual(results["Constant"].status, "unchanged")
         self.assertEqual(results["Variable"].status, "unchanged")
+
+    def test_fill_only_by_default(self):
+        collection, results = self._sync()
+        const = results["Constant"]
+        self.assertEqual(const.status, "kept")
+        self.assertEqual(const.kept, ["bpm", "key", "grid"])
+        self.assertAlmostEqual(const.entry.bpm, 127.99)
+        self.assertEqual(const.entry.key, 0)
+        self.assertEqual(const.entry.grid, [(50.0, None)])
+        self.assertFalse(const.entry.locked)
+        # Tracks with no metadata in Traktor are still filled in.
+        self.assertEqual(results["Variable"].status, "updated")
+        self.assertAlmostEqual(results["Variable"].entry.bpm, 121.0)
+
+    def test_overwrite_selected_fields(self):
+        _, results = self._sync(overwrite=frozenset({"bpm"}))
+        const = results["Constant"]
+        self.assertEqual(const.status, "updated")
+        self.assertEqual(const.kept, ["key", "grid"])
+        self.assertAlmostEqual(const.entry.bpm, 128.0)
+        self.assertEqual(const.entry.key, 0)
+        self.assertEqual(const.entry.grid, [(50.0, None)])
 
     def test_skip_locked_and_no_filename(self):
         _, results = self._sync(skip_locked=True, match_filename=False)
@@ -153,12 +175,18 @@ class SyncTests(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(main([RB_XML, self.nml, "--dry-run"]), 0)
+        self.assertIn("updated:   2", out.getvalue())
+        self.assertIn("kept existing Traktor values: 1", out.getvalue())
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(main([RB_XML, self.nml, "--dry-run", "--overwrite", "all"]), 0)
         self.assertIn("updated:   3", out.getvalue())
         with open(self.nml) as fh, open(NML) as orig:
             self.assertEqual(fh.read(), orig.read())
 
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(main([RB_XML, self.nml]), 0)
+            self.assertEqual(main([RB_XML, self.nml, "--overwrite", "key", "--overwrite", "grid"]), 0)
         backups = [f for f in os.listdir(self.tmp) if f.endswith(".bak")]
         self.assertEqual(len(backups), 1)
         with open(self.nml) as fh:

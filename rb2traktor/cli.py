@@ -10,7 +10,7 @@ from collections import Counter
 from . import __version__
 from .keys import KEY_FORMATS
 from .rekordbox import read_rekordbox_xml
-from .sync import SyncOptions, sync
+from .sync import OVERWRITE_FIELDS, SyncOptions, sync
 from .traktor import TraktorCollection, find_collections
 
 
@@ -43,6 +43,11 @@ def build_parser():
     what.add_argument("--no-bpm", dest="bpm", action="store_false", help="do not sync BPM")
     what.add_argument("--no-key", dest="key", action="store_false", help="do not sync musical key")
     what.add_argument("--no-grid", dest="grid", action="store_false", help="do not sync beatgrid")
+    what.add_argument("--overwrite", action="append", default=[],
+                      choices=("all",) + OVERWRITE_FIELDS, metavar="{all,bpm,key,grid}",
+                      help="replace values that already exist in Traktor (repeatable, e.g. "
+                           "--overwrite bpm --overwrite grid). By default only tracks that "
+                           "have no BPM/key/grid in Traktor are filled in")
 
     grid = p.add_argument_group("beatgrid")
     grid.add_argument("--grid-mode", choices=("single", "multi"), default="single",
@@ -102,16 +107,18 @@ def main(argv=None):
     options = SyncOptions(
         bpm=args.bpm, key=args.key, grid=args.grid,
         grid_mode=args.grid_mode, offset_ms=args.offset_ms,
-        key_format=args.key_format, lock=args.lock, skip_locked=args.skip_locked,
+        key_format=args.key_format,
+        overwrite=frozenset(OVERWRITE_FIELDS if "all" in args.overwrite else args.overwrite),
+        lock=args.lock, skip_locked=args.skip_locked,
         match_filename=args.match_filename, path_maps=args.path_map,
     )
     results = sync(rb_tracks, collection, options)
     counts = Counter(r.status for r in results)
 
     for r in results:
-        show = (r.status == "updated" and args.verbose >= 1) or args.verbose >= 2
+        show = (r.status in ("updated", "kept") and args.verbose >= 1) or args.verbose >= 2
         if show:
-            detail = "; ".join(r.changes) if r.changes else ""
+            detail = "; ".join(r.changes + ["kept existing %s" % f for f in r.kept])
             print("[%s] %s%s" % (r.status, r.rb.label, (": " + detail) if detail else ""))
         for w in r.warnings:
             print("warning: %s: %s" % (r.rb.label, w), file=sys.stderr)
@@ -119,6 +126,9 @@ def main(argv=None):
     print("Rekordbox tracks: %d, Traktor entries: %d" % (len(rb_tracks), len(collection.entries)))
     print("  updated:   %d" % counts["updated"])
     print("  unchanged: %d" % counts["unchanged"])
+    if counts["kept"]:
+        print("  kept existing Traktor values: %d (use --overwrite to replace them)"
+              % counts["kept"])
     if counts["locked"]:
         print("  skipped (locked in Traktor): %d" % counts["locked"])
     print("  not in Traktor: %d" % counts["unmatched"])
