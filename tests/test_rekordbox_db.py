@@ -155,6 +155,14 @@ class SourceSelectionTests(unittest.TestCase):
         self.assertEqual(code, 0)
         db.assert_called_once_with("/x/master.db", "k")
 
+    def test_several_traktor_collections(self):
+        old = os.path.join(self.tmp, "Traktor 3.11.1", "collection.nml")
+        with mock.patch.object(cli, "find_collections", return_value=[self.nml, old]):
+            code, out, _ = self._run([RB_XML, "-n"])
+        self.assertEqual(code, 0)
+        self.assertIn("Using Traktor collection: %s" % self.nml, out)
+        self.assertIn("also found %s" % old, out)
+
     def test_stale_xml_warning(self):
         xml = os.path.join(self.tmp, "rekordbox.xml")
         shutil.copy(RB_XML, xml)

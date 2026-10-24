@@ -43,7 +43,7 @@ def build_grid(tempos, average_bpm=None, mode="single", offset_ms=0.0):
 
     ``mode="single"``: one marker on the first downbeat. For variable-tempo
     tracks the average BPM is used, so the grid will drift.
-    ``mode="multi"``: one marker per tempo change (Traktor 3 supports a BPM
+    ``mode="multi"``: one marker per tempo change (Traktor 3+ stores a BPM
     per grid marker).
     """
     if not tempos:

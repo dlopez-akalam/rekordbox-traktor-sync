@@ -76,8 +76,10 @@ installing it: `python3 -m rb2traktor ...`
 
 With no arguments, both libraries are found automatically:
 
-* **Traktor**: the newest `~/Documents/Native Instruments/Traktor*/collection.nml`.
-  To use a different file, pass it: `rb2traktor path/to/collection.nml`.
+* **Traktor**: the most recently saved
+  `~/Documents/Native Instruments/Traktor*/collection.nml`. If several are found,
+  the others are listed. To use a different file, pass it:
+  `rb2traktor path/to/collection.nml`.
 * **Rekordbox**: the source is picked in this order:
   1. **The Rekordbox library itself**, if `pyrekordbox` is installed and can open it.
   2. **The XML export at a fixed location**: `~/Music/rekordbox.xml`, or the path
@@ -102,7 +104,7 @@ rb2traktor rekordbox.xml collection.nml   # both explicit
 
   | What                     | Location on macOS                                         |
   |--------------------------|-----------------------------------------------------------|
-  | Traktor collection       | `~/Documents/Native Instruments/Traktor 3.x.x/collection.nml` |
+  | Traktor collection       | `~/Documents/Native Instruments/Traktor 4.x.x/collection.nml` |
   | Rekordbox library        | `~/Library/Pioneer/rekordbox/master.db`                    |
   | Default XML export       | `~/Music/rekordbox.xml`                                    |
 
@@ -119,6 +121,30 @@ rb2traktor rekordbox.xml collection.nml   # both explicit
   `Café.mp3` matches either way.
 * **Mixing Mac and Windows:** if Rekordbox runs on one OS and Traktor on the
   other, map the paths: `--path-map "C:/Users/me/Music=/Users/me/Music"`.
+
+### Traktor versions
+
+Traktor Pro 3 and Traktor Pro 4 both keep their collection in
+`collection.nml`, in a folder per version:
+`~/Documents/Native Instruments/Traktor 3.x.x/` or `.../Traktor 4.x.x/` (the same
+path under your user folder on Windows). The tool reads and writes both.
+
+* **Several Traktor folders:** this happens if Traktor 3 and 4 are installed side
+  by side, or after a 4.x update, which creates a new folder and leaves the old
+  one behind. The tool uses the collection that was saved most recently, which
+  is the one Traktor last closed. It prints the others; pass a path to choose
+  one explicitly.
+* **Custom root folder:** if you moved Traktor's root folder under
+  *Preferences → File Management*, pass the collection path explicitly.
+* **Flexible Beatgrids (Pro 4):** with `--grid-mode multi`, each Rekordbox tempo
+  change becomes its own grid marker with its own BPM, the natural fit for Pro 4's
+  variable grids. Native Instruments doesn't document how Pro 4 stores Flexible
+  Beatgrids in the file, though, and this has not been checked against grids
+  made in Pro 4 itself.
+  Before syncing a whole library, try one variable-tempo track:
+  `rb2traktor --grid-mode multi -o test.nml`, then compare the result with that
+  track's grid in Traktor. The default single-marker mode writes the simple,
+  long-standing one-marker grid.
 
 ### About reading the Rekordbox library directly
 
@@ -165,7 +191,8 @@ Run it with `--dry-run -v` first to see exactly which tracks would change.
 * **Variable tempo**: tracks analysed with Rekordbox's dynamic mode have several
   tempo segments (one per tempo change). The default `--grid-mode single` writes one marker at the
   average BPM, and its grid will drift. `--grid-mode multi` writes one marker
-  per tempo change.
+  per tempo change. This suits Traktor Pro 4's Flexible Beatgrids, but see
+  [Traktor versions](#traktor-versions).
 * **Locking**: updated tracks are locked (`LOCK="1"`) so Traktor's analysis
   won't overwrite them. Turn this off with `--no-lock`. Tracks that were already
   locked are treated like any other track, unless you pass `--skip-locked`.

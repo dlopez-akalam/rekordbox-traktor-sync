@@ -197,6 +197,11 @@ def main(argv=None):
             return 2
         nml = candidates[0]
         print("Using Traktor collection: %s" % nml)
+        if len(candidates) > 1:
+            # e.g. Traktor Pro 3 and 4 side by side, or an older 4.x folder left
+            # behind by an update: the most recently saved one is assumed live.
+            print("note: also found %s; this is the most recently saved one. Pass the "
+                  "path explicitly to use another." % ", ".join(candidates[1:]))
 
     try:
         rb_tracks = load_rekordbox(args)
