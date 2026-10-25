@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+  <COLLECTION Entries="4">
+    <TRACK TrackID="1" Name="Constant" Artist="Artist A" Kind="MP3 File" AverageBpm="128.00" Tonality="Am"
+           Location="file://localhost/Users/dj/Music/Constant%20Track.mp3">
+      <TEMPO Inizio="0.120" Bpm="128.00" Metro="4/4" Battito="3"/>
+    </TRACK>
+    <TRACK TrackID="2" Name="Variable" Artist="Artist B" Kind="MP3 File" AverageBpm="121.00" Tonality="8A"
+           Location="file://localhost/Volumes/USB/Music/variable.mp3">
+      <TEMPO Inizio="0.050" Bpm="120.00" Metro="4/4" Battito="1"/>
+      <TEMPO Inizio="2.050" Bpm="120.00" Metro="4/4" Battito="1"/>
+      <TEMPO Inizio="4.050" Bpm="122.00" Metro="4/4" Battito="1"/>
+    </TRACK>
+    <TRACK TrackID="3" Name="Moved" Artist="Artist C" Kind="MP3 File" AverageBpm="174.00" Tonality="F#m"
+           Location="file://localhost/Users/dj/Old/moved.mp3">
+      <TEMPO Inizio="0.000" Bpm="174.00" Metro="4/4" Battito="1"/>
+    </TRACK>
+    <TRACK TrackID="4" Name="Missing" Artist="Artist D" Kind="MP3 File" AverageBpm="100.00" Tonality="C"
+           Location="file://localhost/Users/dj/Music/missing.mp3"/>
+  </COLLECTION>
+</DJ_PLAYLISTS>
