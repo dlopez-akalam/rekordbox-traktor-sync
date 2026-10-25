@@ -25,21 +25,34 @@ cd rekordbox-traktor-sync
 
 ### macOS
 
-Use Homebrew's Python. The `python3` that comes with Xcode's Command Line
-Tools is 3.9, too old for current `pyrekordbox` (3.11+). Install the tool with
-[pipx](https://pipx.pypa.io): Homebrew's Python refuses a plain `pip install`
-("externally-managed-environment").
+Use Homebrew's **Python 3.14**. The `python3` that comes with Xcode's Command
+Line Tools is 3.9, too old for current `pyrekordbox` (3.11+). Python 3.15 is too
+new: `sqlcipher3`, which decrypts the Rekordbox library, has no 3.15 build yet.
+Install the tool with [pipx](https://pipx.pypa.io): Homebrew's Python refuses a
+plain `pip install` ("externally-managed-environment").
 
 ```sh
-brew install python pipx
+brew install python@3.14 pipx
 pipx ensurepath          # then open a new Terminal window
-pipx install '.[db]'
+export PIPX_DEFAULT_PYTHON="$(brew --prefix python@3.14)/bin/python3.14"
+pipx install --python "$PIPX_DEFAULT_PYTHON" '.[db]'
 rb2traktor --help
+```
+
+If an earlier `pipx install` failed with a different Python, reset pipx's
+shared files first: `rm -rf ~/Library/Application\ Support/pipx/shared`.
+
+Without pipx, a virtual environment works too:
+
+```sh
+"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+.venv/bin/pip install '.[db]'
+.venv/bin/rb2traktor --help
 ```
 
 ### Windows
 
-Install Python 3.11+ from [python.org](https://www.python.org/downloads/), with
+Install Python 3.11–3.14 from [python.org](https://www.python.org/downloads/), with
 "Add python.exe to PATH" ticked. Then, in PowerShell:
 
 ```powershell
