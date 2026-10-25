@@ -25,30 +25,57 @@ cd rekordbox-traktor-sync
 
 ### macOS
 
-Use Homebrew's **Python 3.14**. The `python3` that comes with Xcode's Command
-Line Tools is 3.9, too old for current `pyrekordbox` (3.11+). Python 3.15 is too
-new: `sqlcipher3`, which decrypts the Rekordbox library, has no 3.15 build yet.
-Install the tool with [pipx](https://pipx.pypa.io): Homebrew's Python refuses a
-plain `pip install` ("externally-managed-environment").
+The easiest route is [uv](https://docs.astral.sh/uv/). It fetches a suitable
+Python by itself and installs the tool in its own isolated environment:
+
+```sh
+brew install uv
+uv tool install --python 3.14 '.[db]'
+uv tool update-shell     # only needed once; then open a new Terminal window
+rb2traktor --help
+```
+
+Why Python 3.14:
+
+* Current `pyrekordbox` needs Python 3.11 or newer. The `python3` that comes with
+  Xcode's Command Line Tools is 3.9.
+* Python 3.15 is too new: `sqlcipher3`, which decrypts the Rekordbox library, has
+  no 3.15 build yet.
+
+To update after pulling new changes, run
+`uv tool install --reinstall --python 3.14 '.[db]'` from the project folder.
+To remove the tool: `uv tool uninstall rb2traktor`.
+
+<details>
+<summary>Alternatives: pipx or a virtual environment</summary>
+
+Homebrew's Python refuses a plain `pip install` ("externally-managed-environment"),
+so use [pipx](https://pipx.pypa.io):
 
 ```sh
 brew install python@3.14 pipx
 pipx ensurepath          # then open a new Terminal window
 export PIPX_DEFAULT_PYTHON="$(brew --prefix python@3.14)/bin/python3.14"
 pipx install --python "$PIPX_DEFAULT_PYTHON" '.[db]'
-rb2traktor --help
 ```
 
 If an earlier `pipx install` failed with a different Python, reset pipx's
 shared files first: `rm -rf ~/Library/Application\ Support/pipx/shared`.
 
-Without pipx, a virtual environment works too:
+Or a virtual environment:
 
 ```sh
 "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
 .venv/bin/pip install '.[db]'
 .venv/bin/rb2traktor --help
 ```
+
+On some Macs pip crashes before installing anything, with
+`ValueError: invalid literal for int() with base 10: ''` in `truststore/_macos.py`.
+This is pip failing to read the macOS version, not a problem with this tool. Use
+the uv route above, which doesn't go through pip.
+
+</details>
 
 ### Windows
 
@@ -60,9 +87,12 @@ pip install ".[db]"
 rb2traktor --help
 ```
 
+uv works on Windows too (`winget install astral-sh.uv`, then
+`uv tool install --python 3.14 ".[db]"`).
+
 ### Without direct library reading
 
-`pip install .` (or `pipx install .`) installs only the XML route. It has no
+`uv tool install .` (or `pip install .` / `pipx install .`) installs only the XML route. It has no
 dependencies and runs on Python 3.8+. You can also run the tool without
 installing it: `python3 -m rb2traktor ...`
 
@@ -149,15 +179,12 @@ path under your user folder on Windows). The tool reads and writes both.
   one explicitly.
 * **Custom root folder:** if you moved Traktor's root folder under
   *Preferences → File Management*, pass the collection path explicitly.
-* **Flexible Beatgrids (Pro 4):** with `--grid-mode multi`, each Rekordbox tempo
-  change becomes its own grid marker with its own BPM, the natural fit for Pro 4's
-  variable grids. Native Instruments doesn't document how Pro 4 stores Flexible
-  Beatgrids in the file, though, and this has not been checked against grids
-  made in Pro 4 itself.
-  Before syncing a whole library, try one variable-tempo track:
-  `rb2traktor --grid-mode multi -o test.nml`, then compare the result with that
-  track's grid in Traktor. The default single-marker mode writes the simple,
-  long-standing one-marker grid.
+* **Variable-tempo grids:** with `--grid-mode multi`, each Rekordbox tempo change
+  becomes its own grid marker with its own BPM, and Traktor follows the tempo
+  changes. This has been checked on a real library. Native Instruments doesn't
+  document the file format, so after a major Traktor update it's still worth
+  spot-checking one variable-tempo track. The default single-marker mode writes
+  one marker at the average BPM, which drifts on such tracks.
 
 ### About reading the Rekordbox library directly
 
@@ -204,8 +231,8 @@ Run it with `--dry-run -v` first to see exactly which tracks would change.
 * **Variable tempo**: tracks analysed with Rekordbox's dynamic mode have several
   tempo segments (one per tempo change). The default `--grid-mode single` writes one marker at the
   average BPM, and its grid will drift. `--grid-mode multi` writes one marker
-  per tempo change. This suits Traktor Pro 4's Flexible Beatgrids, but see
-  [Traktor versions](#traktor-versions).
+  per tempo change, which follows the tempo changes in Traktor (see
+  [Traktor versions](#traktor-versions)).
 * **Locking**: updated tracks are locked (`LOCK="1"`) so Traktor's analysis
   won't overwrite them. Turn this off with `--no-lock`. Tracks that were already
   locked are treated like any other track, unless you pass `--skip-locked`.
@@ -266,6 +293,6 @@ rb2traktor [REKORDBOX_SOURCE] [TRAKTOR_NML]
 ## Development
 
 ```sh
-pip install pyrekordbox   # optional: also runs the database tests
-python3 -m unittest -v
+python3 -m unittest -v                                                  # pyrekordbox-free tests
+uv run --python 3.14 --extra db python -m unittest -v                   # all tests, including the database test
 ```
