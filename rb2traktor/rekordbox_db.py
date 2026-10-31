@@ -13,7 +13,11 @@ from pathlib import Path
 from .grid import BPM_EPSILON
 from .keys import parse_key
 from .paths import location_to_path
-from .rekordbox import RekordboxTrack, TempoSegment
+from .rekordbox import HotCue, RekordboxTrack, TempoSegment
+
+# djmdCue.Kind for hot cues A..H. Rekordbox skips 4 (memory loops use it);
+# 0 is a memory cue.
+_HOTCUE_KINDS = {1: 0, 2: 1, 3: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7}
 
 
 class DatabaseUnavailable(Exception):
@@ -49,6 +53,26 @@ def segments_from_beats(beats, bpms, times):
             continue
         segments.append(TempoSegment(float(start), bpm, int(beat) or 1))
     return segments
+
+
+def hotcues_from_rows(rows):
+    """Group djmdCue rows into ``{ContentID: [HotCue, ...]}``.
+
+    Positions are milliseconds; a hot loop has ``OutMsec`` after ``InMsec``
+    (plain cues store -1).
+    """
+    by_content = {}
+    for row in rows:
+        if getattr(row, "rb_local_deleted", 0) or row.InMsec is None:
+            continue
+        slot = _HOTCUE_KINDS.get(row.Kind)
+        if slot is None:
+            continue
+        start = row.InMsec / 1000.0
+        end = row.OutMsec / 1000.0 if row.OutMsec is not None and row.OutMsec > row.InMsec else None
+        cue = HotCue(slot, start, end, row.Comment or "", "loop" if end is not None else "cue")
+        by_content.setdefault(str(row.ContentID), {})[slot] = cue
+    return {cid: [cues[k] for k in sorted(cues)] for cid, cues in by_content.items()}
 
 
 def rekordbox_running():
@@ -114,6 +138,11 @@ def read_rekordbox_db(path=None, key=None, unlock=True, read_grid=read_beat_grid
             if "not a database" in msg:
                 msg += " (wrong database key? try --db-key)"
             raise DatabaseUnavailable("could not read the Rekordbox database: %s" % msg) from exc
+        try:
+            hotcues = hotcues_from_rows(db.get_cue())
+        except Exception as exc:
+            warnings.append("could not read hot cues (%s)" % _first_line(exc))
+            hotcues = {}
         for content in contents:
             if getattr(content, "rb_local_deleted", 0) or not content.FolderPath:
                 continue
@@ -127,6 +156,7 @@ def read_rekordbox_db(path=None, key=None, unlock=True, read_grid=read_beat_grid
                 bpm=content.BPM / 100.0 if content.BPM else None,
                 key_text=key_text or "",
                 key=parse_key(key_text),
+                hotcues=hotcues.get(str(content.ID), []),
             )
             if content.AnalysisDataPath:
                 anlz_path = share / content.AnalysisDataPath.replace("\\", "/").strip("/")

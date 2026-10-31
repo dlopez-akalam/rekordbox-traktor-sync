@@ -10,6 +10,11 @@ from .paths import traktor_location_path
 
 GRID_CUE_TYPE = "4"
 
+# CUE_V2 TYPE for each Rekordbox cue type (4 is the grid marker).
+CUE_TYPES = {"cue": "0", "fade-in": "1", "fade-out": "2", "load": "3", "loop": "5"}
+# Traktor's name for a cue without one.
+UNNAMED_CUE = "n.n."
+
 # Canonical order of ENTRY children as written by Traktor. New elements are
 # inserted after the last existing element that precedes them in this list.
 _ENTRY_ORDER = [
@@ -69,6 +74,21 @@ class TraktorEntry:
             markers.append((float(cue.get("START", "0")), bpm))
         return markers
 
+    @property
+    def hotcues(self):
+        """Existing hot cues as ``{slot: CUE_V2 element}``, grid markers excluded."""
+        cues = {}
+        for cue in self.element.findall("CUE_V2"):
+            if cue.get("TYPE") == GRID_CUE_TYPE:
+                continue
+            try:
+                slot = int(cue.get("HOTCUE", "-1"))
+            except ValueError:
+                continue
+            if slot >= 0:
+                cues[slot] = cue
+        return cues
+
     # -- mutation --------------------------------------------------------
 
     def _insert(self, child):
@@ -117,9 +137,58 @@ class TraktorEntry:
             ET.SubElement(cue, "GRID", {"BPM": "%.6f" % marker.bpm})
             self._insert(cue)
 
+    def set_hotcue(self, attrs):
+        """Put a hot cue (CUE_V2 attributes, see ``hotcue_attrs``) in its slot.
+
+        Traktor often parks the AutoGrid marker on hot cue 1; a grid marker
+        in the slot keeps its place in the grid but stops being a hot cue.
+        """
+        entry, slot = self.element, attrs["HOTCUE"]
+        for cue in entry.findall("CUE_V2"):
+            if cue.get("HOTCUE") != slot:
+                continue
+            if cue.get("TYPE") == GRID_CUE_TYPE:
+                cue.set("HOTCUE", "-1")
+            else:
+                entry.remove(cue)
+        self._insert(ET.Element("CUE_V2", attrs))
+
     def lock(self):
         self.element.set("LOCK", "1")
         self.element.set("LOCK_MODIFICATION_TIME", time.strftime("%Y-%m-%dT%H:%M:%S"))
+
+
+def hotcue_attrs(cue, offset_ms=0.0):
+    """CUE_V2 attributes for a Rekordbox ``HotCue``."""
+    length = (cue.end - cue.start) * 1000.0 if cue.end is not None else 0.0
+    return {
+        "NAME": cue.name or UNNAMED_CUE,
+        "DISPL_ORDER": "0",
+        "TYPE": CUE_TYPES.get(cue.type, "0"),
+        "START": "%.6f" % (cue.start * 1000.0 + offset_ms),
+        "LEN": "%.6f" % length,
+        "REPEATS": "-1",
+        "HOTCUE": str(cue.slot),
+    }
+
+
+def same_hotcue(element, attrs):
+    """True if an existing CUE_V2 already matches ``attrs`` (to the millisecond)."""
+    def num(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def name(value):
+        return "" if value in (None, UNNAMED_CUE) else value
+
+    for key in ("START", "LEN"):
+        a, b = num(element.get(key)), num(attrs[key])
+        if a is None or abs(a - b) >= 0.5:
+            return False
+    return (element.get("TYPE") == attrs["TYPE"]
+            and name(element.get("NAME")) == name(attrs["NAME"]))
 
 
 class TraktorCollection:

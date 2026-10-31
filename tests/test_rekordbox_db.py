@@ -78,6 +78,11 @@ class DatabaseTests(unittest.TestCase):
                        FolderPath="/Users/dj/Music/deleted.mp3", rb_local_deleted=1))
             s.add(_row(models.DjmdContent, ID="3", Title="No analysis", BPM=17400,
                        FolderPath="C:\\Music\\dnb.mp3"))
+            s.add(_row(models.DjmdCue, ID="c1", ContentID="1", Kind=1, InMsec=500, OutMsec=-1,
+                       Comment="Intro"))
+            s.add(_row(models.DjmdCue, ID="c2", ContentID="1", Kind=5, InMsec=60000,
+                       OutMsec=67500))
+            s.add(_row(models.DjmdCue, ID="c3", ContentID="1", Kind=0, InMsec=1000, OutMsec=-1))
             s.commit()
         engine.dispose()
         grid_dir = self.tmp / "share" / "PIONEER" / "USBANLZ" / "ab" / "cd"
@@ -101,11 +106,14 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(const.bpm, 128.0)
         self.assertEqual(const.key, 21)
         self.assertEqual([(t.start, t.bpm, t.beat) for t in const.tempos], [(0.12, 128.0, 3)])
+        self.assertEqual([(c.letter, c.type, c.start, c.end, c.name) for c in const.hotcues],
+                         [("A", "cue", 0.5, None, "Intro"), ("D", "loop", 60.0, 67.5, "")])
 
         other = by_name["No analysis"]
         self.assertEqual(other.path, "C:/Music/dnb.mp3")
         self.assertIsNone(other.key)
         self.assertEqual(other.tempos, [])
+        self.assertEqual(other.hotcues, [])
 
 
 class SourceSelectionTests(unittest.TestCase):

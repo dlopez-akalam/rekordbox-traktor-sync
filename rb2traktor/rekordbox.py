@@ -15,6 +15,25 @@ class TempoSegment:
     meter: str = "4/4"
 
 
+# POSITION_MARK Type in Rekordbox XML exports.
+CUE_TYPES = {0: "cue", 1: "fade-in", 2: "fade-out", 3: "load", 4: "loop"}
+
+HOTCUE_LETTERS = "ABCDEFGH"
+
+
+@dataclass
+class HotCue:
+    slot: int  # 0..7 = hot cue A..H
+    start: float  # seconds
+    end: float = None  # seconds, hot loops only
+    name: str = ""
+    type: str = "cue"  # see CUE_TYPES
+
+    @property
+    def letter(self):
+        return HOTCUE_LETTERS[self.slot]
+
+
 @dataclass
 class RekordboxTrack:
     track_id: str
@@ -25,6 +44,7 @@ class RekordboxTrack:
     key_text: str = ""
     key: int = None  # Traktor key value, see keys.py
     tempos: list = field(default_factory=list)
+    hotcues: list = field(default_factory=list)
 
     @property
     def label(self):
@@ -66,6 +86,24 @@ def read_rekordbox_xml(path):
             tempos.append(TempoSegment(start, bpm, beat, t.get("Metro", "4/4")))
         tempos.sort(key=lambda s: s.start)
 
+        hotcues = {}
+        for mark in el.findall("POSITION_MARK"):
+            try:
+                slot = int(mark.get("Num", "-1"))
+                cue_type = CUE_TYPES.get(int(mark.get("Type", "0")), "cue")
+            except ValueError:
+                continue
+            start = _float(mark.get("Start"))
+            # Num -1 is a memory cue; Traktor has 8 hot cues, like Rekordbox.
+            if start is None or not 0 <= slot < len(HOTCUE_LETTERS):
+                continue
+            end = _float(mark.get("End"))
+            if cue_type == "loop" and (end is None or end <= start):
+                cue_type, end = "cue", None
+            elif cue_type != "loop":
+                end = None
+            hotcues[slot] = HotCue(slot, start, end, mark.get("Name", "") or "", cue_type)
+
         bpm = _float(el.get("AverageBpm"))
         key_text = el.get("Tonality", "") or ""
         tracks.append(RekordboxTrack(
@@ -77,5 +115,6 @@ def read_rekordbox_xml(path):
             key_text=key_text,
             key=parse_key(key_text),
             tempos=tempos,
+            hotcues=[hotcues[k] for k in sorted(hotcues)],
         ))
     return tracks

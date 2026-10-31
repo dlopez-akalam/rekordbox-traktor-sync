@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rb2traktor"
 version = "0.1.0"
-description = "Sync BPM, musical key and beatgrid from Rekordbox to Traktor"
+description = "Sync BPM, musical key, beatgrid and hot cues from Rekordbox to Traktor"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }

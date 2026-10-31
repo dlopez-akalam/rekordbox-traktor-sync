@@ -1,4 +1,4 @@
-"""Match Rekordbox tracks to Traktor entries and copy BPM, key and beatgrid."""
+"""Match Rekordbox tracks to Traktor entries and copy BPM, key, beatgrid and hot cues."""
 
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -7,9 +7,10 @@ from .grid import build_grid, is_constant
 from .keys import format_key
 from .paths import (apply_path_maps, basename_key, match_key, normalize_volume,
                     split_path)
+from .traktor import hotcue_attrs, same_hotcue
 
 
-OVERWRITE_FIELDS = ("bpm", "key", "grid")
+OVERWRITE_FIELDS = ("bpm", "key", "grid", "hotcues")
 
 
 @dataclass
@@ -17,11 +18,13 @@ class SyncOptions:
     bpm: bool = True
     key: bool = True
     grid: bool = True
+    hotcues: bool = True
     grid_mode: str = "single"
     offset_ms: float = 0.0
     key_format: str = "openkey"
-    # Fields ("bpm", "key", "grid") whose existing Traktor values may be
-    # replaced. Fields not listed are only written when Traktor has no value.
+    # Fields (see OVERWRITE_FIELDS) whose existing Traktor values may be
+    # replaced. Fields not listed are only written when Traktor has no value;
+    # for hot cues that is decided per slot.
     overwrite: frozenset = frozenset()
     lock: bool = True
     skip_locked: bool = False
@@ -161,7 +164,25 @@ def sync(rb_tracks, collection, options):
                         "(try --grid-mode multi)")
                 result.changes.append("grid %s -> %s" % (_fmt_grid(old), _fmt_grid(new)))
 
-        if result.changes and options.lock and not entry.locked:
+        # Locking protects BPM, key and grid from Traktor's analysis; hot cues
+        # alone don't need it.
+        analysis_changed = bool(result.changes)
+
+        if options.hotcues and rb.hotcues:
+            existing = entry.hotcues
+            for cue in rb.hotcues:
+                attrs = hotcue_attrs(cue, options.offset_ms)
+                old = existing.get(cue.slot)
+                label = "hot cue %s" % cue.letter
+                if old is not None and same_hotcue(old, attrs):
+                    continue
+                if old is not None and "hotcues" not in options.overwrite:
+                    result.kept.append(label)
+                    continue
+                entry.set_hotcue(attrs)
+                result.changes.append("%s %s" % (label, "replaced" if old is not None else "added"))
+
+        if analysis_changed and options.lock and not entry.locked:
             entry.lock()
             result.changes.append("locked")
 

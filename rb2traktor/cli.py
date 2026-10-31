@@ -115,7 +115,7 @@ def load_rekordbox(args):
 def build_parser():
     p = argparse.ArgumentParser(
         prog="rb2traktor",
-        description="Copy BPM, musical key and beatgrid from Rekordbox into a Traktor "
+        description="Copy BPM, musical key, beatgrid and hot cues from Rekordbox into a Traktor "
                     "collection.nml. Close Traktor before running.",
     )
     p.add_argument("source", nargs="?", metavar="REKORDBOX_SOURCE",
@@ -139,18 +139,21 @@ def build_parser():
     what.add_argument("--no-bpm", dest="bpm", action="store_false", help="do not sync BPM")
     what.add_argument("--no-key", dest="key", action="store_false", help="do not sync musical key")
     what.add_argument("--no-grid", dest="grid", action="store_false", help="do not sync beatgrid")
+    what.add_argument("--no-hotcues", dest="hotcues", action="store_false",
+                      help="do not sync hot cues")
     what.add_argument("--overwrite", action="append", default=[],
-                      choices=("all",) + OVERWRITE_FIELDS, metavar="{all,bpm,key,grid}",
+                      choices=("all",) + OVERWRITE_FIELDS, metavar="{all,bpm,key,grid,hotcues}",
                       help="replace values that already exist in Traktor (repeatable, e.g. "
-                           "--overwrite bpm --overwrite grid). By default only tracks that "
-                           "have no BPM/key/grid in Traktor are filled in")
+                           "--overwrite bpm --overwrite grid). By default only missing values "
+                           "are filled in: BPM/key/grid when Traktor has none, hot cues "
+                           "when that hot cue slot is empty")
 
     grid = p.add_argument_group("beatgrid")
     grid.add_argument("--grid-mode", choices=("single", "multi"), default="single",
                       help="single: one grid marker on the first downbeat (default); "
                            "multi: one marker per tempo change for variable-tempo tracks")
     grid.add_argument("--offset-ms", type=float, default=0.0,
-                      help="shift every grid marker by this many milliseconds "
+                      help="shift every grid marker and hot cue by this many milliseconds "
                            "(compensates for MP3 decoder offset differences)")
 
     key = p.add_argument_group("key")
@@ -228,7 +231,7 @@ def main(argv=None):
         return 2
 
     options = SyncOptions(
-        bpm=args.bpm, key=args.key, grid=args.grid,
+        bpm=args.bpm, key=args.key, grid=args.grid, hotcues=args.hotcues,
         grid_mode=args.grid_mode, offset_ms=args.offset_ms,
         key_format=args.key_format,
         overwrite=frozenset(OVERWRITE_FIELDS if "all" in args.overwrite else args.overwrite),

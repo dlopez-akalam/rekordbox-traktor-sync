@@ -1,9 +1,9 @@
 # rb2traktor
 
-A small command-line tool that copies **BPM**, **musical key** and **beatgrid**
-from Rekordbox to Traktor. It updates the matching tracks in Traktor's
-`collection.nml`. Nothing else in the collection is touched: cue points, loops,
-playlists, ratings and comments stay as they are.
+A small command-line tool that copies **BPM**, **musical key**, **beatgrid** and
+**hot cues** from Rekordbox to Traktor. It updates the matching tracks in
+Traktor's `collection.nml`. Nothing else in the collection is touched: memory
+cues, saved loops, playlists, ratings and comments stay as they are.
 
 It can read Rekordbox data in two ways:
 
@@ -202,17 +202,22 @@ until `pyrekordbox` catches up. The XML export always remains a fallback.
 ## Existing Traktor values vs. `--overwrite`
 
 By default the tool **only fills in what is missing**. If a Traktor track has
-no BPM, no key or no beatgrid, that field is copied from Rekordbox. Values that
-already exist in Traktor are left alone. They are reported as "kept existing"
-(listed with `-v`).
+no BPM, no key or no beatgrid, that field is copied from Rekordbox. Hot cues are
+handled slot by slot: a Rekordbox hot cue is copied when that hot cue slot is
+empty in Traktor. Values that already exist in Traktor are left alone. They are
+reported as "kept existing" (listed with `-v`).
 
 To replace existing Traktor values with Rekordbox's, use `--overwrite`:
 
 ```sh
-rb2traktor rekordbox.xml --overwrite all                         # BPM, key and grid
+rb2traktor rekordbox.xml --overwrite all                         # BPM, key, grid and hot cues
 rb2traktor rekordbox.xml --overwrite grid                        # only replace grids
 rb2traktor rekordbox.xml --overwrite bpm --overwrite grid        # BPM and grid, keep keys
+rb2traktor rekordbox.xml --overwrite hotcues                     # Rekordbox's hot cues win
 ```
+
+`--overwrite hotcues` replaces Traktor hot cues only in the slots Rekordbox
+uses. A Traktor hot cue in a slot that is empty in Rekordbox is kept.
 
 Run it with `--dry-run -v` first to see exactly which tracks would change.
 
@@ -223,6 +228,7 @@ Run it with `--dry-run -v` first to see exactly which tracks would change.
 | `AverageBpm`                  | `djmdContent.BPM`        | `<TEMPO BPM=…>`                                         |
 | `Tonality` (`Am`, `8A`, `1m`) | `djmdKey.ScaleName`      | `<MUSICAL_KEY VALUE=…>` and the key text `<INFO KEY=…>` |
 | `<TEMPO Inizio Bpm Battito>`  | ANLZ beat grid (`PQTZ`)  | grid markers `<CUE_V2 TYPE="4">` with `<GRID BPM=…>`    |
+| `<POSITION_MARK Num="0…7">`   | `djmdCue` (hot cues)     | `<CUE_V2 HOTCUE="0…7">`                                 |
 
 * **Beatgrid**: when the grid is written, existing Traktor grid markers are
   replaced. Other cues are kept.
@@ -233,7 +239,14 @@ Run it with `--dry-run -v` first to see exactly which tracks would change.
   average BPM, and its grid will drift. `--grid-mode multi` writes one marker
   per tempo change, which follows the tempo changes in Traktor (see
   [Traktor versions](#traktor-versions)).
-* **Locking**: updated tracks are locked (`LOCK="1"`) so Traktor's analysis
+* **Hot cues**: Rekordbox hot cues A–H become Traktor hot cues 1–8, with their
+  names. A hot loop becomes a Traktor loop of the same length. Fade-in, fade-out
+  and load cues from an XML export keep their type. Traktor colours cues by type,
+  so Rekordbox's cue colours aren't copied. Memory cues aren't copied.
+  If a Traktor grid marker is assigned to a hot cue slot (Traktor often puts
+  "AutoGrid" on hot cue 1) and Rekordbox has a hot cue there, the grid marker
+  stays in the grid but stops being a hot cue.
+* **Locking**: tracks whose BPM, key or grid were updated are locked (`LOCK="1"`) so Traktor's analysis
   won't overwrite them. Turn this off with `--no-lock`. Tracks that were already
   locked are treated like any other track, unless you pass `--skip-locked`.
 * **Key text** is written in Open Key notation (Traktor's default). Use
@@ -262,9 +275,10 @@ tracks that already exist in Traktor. Import new tracks into Traktor first.
 ## Grid offset (MP3)
 
 For some MP3 files, Rekordbox and Traktor decode the start of the file
-differently (encoder delay / LAME header handling). Then the whole grid is
-shifted by a constant amount, often around 26 ms. If you see this, check one
-track and compensate:
+differently (encoder delay / LAME header handling). Then the whole grid and all
+hot cues are shifted by a constant amount, often around 26 ms. If you see this,
+check one track and compensate. `--offset-ms` moves grid markers and hot cues
+together:
 
 ```sh
 rb2traktor rekordbox.xml --offset-ms -26
@@ -279,8 +293,8 @@ rb2traktor [REKORDBOX_SOURCE] [TRAKTOR_NML]
   -o, --output FILE        write to FILE instead of updating in place
   -n, --dry-run            show what would change, write nothing
   --no-backup              skip the timestamped backup
-  --no-bpm / --no-key / --no-grid
-  --overwrite all|bpm|key|grid  replace existing Traktor values (repeatable)
+  --no-bpm / --no-key / --no-grid / --no-hotcues
+  --overwrite all|bpm|key|grid|hotcues  replace existing Traktor values (repeatable)
   --grid-mode single|multi
   --offset-ms MS
   --key-format openkey|musical|camelot
